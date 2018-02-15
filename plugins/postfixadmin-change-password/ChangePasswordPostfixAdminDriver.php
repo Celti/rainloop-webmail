@@ -5,7 +5,12 @@ class ChangePasswordPostfixAdminDriver implements \RainLoop\Providers\ChangePass
 	/**
 	 * @var string
 	 */
-	private $sHost = '127.0.0.1';
+	private $sDriver = 'mysql';
+
+	/**
+	 * @var string
+	 */
+	private $sHost = 'localhost';
 
 	/**
 	 * @var int
@@ -56,6 +61,17 @@ class ChangePasswordPostfixAdminDriver implements \RainLoop\Providers\ChangePass
 	 * @var \MailSo\Log\Logger
 	 */
 	private $oLogger = null;
+
+	/**
+	 * @param string $sDriver
+	 *
+	 * @return \ChangePasswordPostfixAdminDriver
+	 */
+	public function SetDriver($sDriver)
+	{
+		$this->sDriver = $sDriver;
+		return $this;
+	}
 
 	/**
 	 * @param string $sHost
@@ -215,7 +231,7 @@ class ChangePasswordPostfixAdminDriver implements \RainLoop\Providers\ChangePass
 		{
 			try
 			{
-				$sDsn = 'mysql:host='.$this->sHost.';port='.$this->iPort.';dbname='.$this->sDatabase;
+				$sDsn = $this->sDriver.':host='.$this->sHost.';port='.$this->iPort.';dbname='.$this->sDatabase;
 
 				$oPdo = new \PDO($sDsn, $this->sUser, $this->sPassword);
 				$oPdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
@@ -250,6 +266,22 @@ class ChangePasswordPostfixAdminDriver implements \RainLoop\Providers\ChangePass
 	}
 
 	/**
+	 * @param int $iLength
+	 * @param string $keySpace
+	 *
+	 * @return string
+	 */
+	private function randomSalt($length, $keyspace = './0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+	{
+		$str = '';
+		$max = mb_strlen($keyspace, '8bit') - 1;
+		for ($i = 0; $i < $length; ++$i) {
+			$str .= $keyspace[random_int(0, $max)];
+		}
+		return $str;
+	}
+
+	/**
 	 * @param string $sPassword
 	 * @param \PDO $oPdo
 	 *
@@ -258,46 +290,60 @@ class ChangePasswordPostfixAdminDriver implements \RainLoop\Providers\ChangePass
 	private function cryptPassword($sPassword, $oPdo)
 	{
 		$sResult = '';
-		$sSalt = substr(str_shuffle('./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'), 0, 16);
+		$sSalt = '';
 		switch (strtolower($this->sEncrypt))
 		{
 			default:
-			case 'plain':
+			case 'clear':
 			case 'cleartext':
+			case 'plain':
 				$sResult = '{PLAIN}' . $sPassword;
 				break;
 
-			case 'md5crypt':
-				include_once __DIR__.'/md5crypt.php';
-				$sResult = '{MD5-CRYPT}' . md5crypt($sPassword);
-				break;
-
-			case 'md5':
+			case 'plain-md5':
 				$sResult = '{PLAIN-MD5}' . md5($sPassword);
 				break;
 
-			case 'system':
+			case 'crypt':
 				$sResult = '{CRYPT}' . crypt($sPassword);
 				break;
 
+			case 'md5-crypt':
+				$sSalt = $this->randomSalt(8);
+				$sResult = '{MD5-CRYPT}' . crypt($sPassword, '$1$'.$sSalt);
+				break;
+
+			case 'sha256':
+				$sResult = '{SHA256}' . base64_encode(hash('sha256', $sPassword, true));
+				break;
+
 			case 'sha256-crypt':
-				$sResult = '{SHA256-CRYPT}' . crypt($sPassword,'$5$'.$sSalt);
+				$sSalt = $this->randomSalt(16);
+				$sResult = '{SHA256-CRYPT}' . crypt($sPassword, '$5$'.$sSalt);
+				break;
+
+			case 'ssha256':
+				$sSalt = $this->randomSalt(16);
+				$sResult = '{SSHA256}' . base64_encode(hash('sha256', $sPassword . $sSalt, true) . $sSalt);
+				break;
+
+			case 'sha512':
+				$sResult = '{SHA512}' . base64_encode(hash('sha512', $sPassword, true));
 				break;
 
 			case 'sha512-crypt':
-				$sResult = '{SHA512-CRYPT}' . crypt($sPassword,'$6$'.$sSalt);
+				$sSalt = $this->randomSalt(16);
+				$sResult = '{SHA512-CRYPT}' . crypt($sPassword, '$6$'.$sSalt);
 				break;
 
-			case 'mysql_encrypt':
-				$oStmt = $oPdo->prepare('SELECT ENCRYPT(?) AS encpass');
-				if ($oStmt->execute(array($sPassword)))
-				{
-					$aFetchResult = $oStmt->fetchAll(\PDO::FETCH_ASSOC);
-					if (\is_array($aFetchResult) && isset($aFetchResult[0]['encpass']))
-					{
-						$sResult = $aFetchResult[0]['encpass'];
-					}
-				}
+			case 'ssha512':
+				$sSalt = $this->randomSalt(16);
+				$sResult = '{SSHA512}' . base64_encode(hash('sha512', $sPassword . $sSalt, true) . $sSalt);
+				break;
+
+			case 'blf-crypt':
+				$sSalt = $this->randomSalt(22);
+				$sResult = '{BLF-CRYPT}' . crypt($sPassword, '$2y$05$'.$sSalt);
 				break;
 		}
 

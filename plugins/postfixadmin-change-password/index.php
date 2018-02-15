@@ -14,13 +14,13 @@ class PostfixadminChangePasswordPlugin extends \RainLoop\Plugins\AbstractPlugin
 	{
 		if (!extension_loaded('pdo') || !class_exists('PDO'))
 		{
-			return 'The PHP extension PDO (mysql) must be installed to use this plugin';
+			return 'The PHP extension PDO must be installed to use this plugin';
 		}
 
 		$aDrivers = \PDO::getAvailableDrivers();
-		if (!is_array($aDrivers) || !in_array('mysql', $aDrivers))
+		if (!is_array($aDrivers) || !in_array($this->Config()->Get('plugin', 'driver', 'mysql'), $aDrivers))
 		{
-			return 'The PHP extension PDO (mysql) must be installed to use this plugin';
+			return 'The PHP extension PDO must be installed to use this plugin';
 		}
 
 		return '';
@@ -41,6 +41,7 @@ class PostfixadminChangePasswordPlugin extends \RainLoop\Plugins\AbstractPlugin
 				$oProvider = new ChangePasswordPostfixAdminDriver();
 
 				$oProvider
+					->SetDriver($this->Config()->Get('plugin', 'driver', ''))
 					->SetHost($this->Config()->Get('plugin', 'host', ''))
 					->SetPort((int) $this->Config()->Get('plugin', 'port', 3306))
 					->SetDatabase($this->Config()->Get('plugin', 'database', ''))
@@ -64,31 +65,33 @@ class PostfixadminChangePasswordPlugin extends \RainLoop\Plugins\AbstractPlugin
 	public function configMapping()
 	{
 		return array(
-			\RainLoop\Plugins\Property::NewInstance('host')->SetLabel('MySQL Host')
-				->SetDefaultValue('127.0.0.1'),
-			\RainLoop\Plugins\Property::NewInstance('port')->SetLabel('MySQL Port')
+			\RainLoop\Plugins\Property::NewInstance('driver')->SetLabel('Database Driver')
+				->SetDefaultValue('mysql'),
+			\RainLoop\Plugins\Property::NewInstance('host')->SetLabel('Database Host')
+				->SetDefaultValue('localhost'),
+			\RainLoop\Plugins\Property::NewInstance('port')->SetLabel('Databse Port')
 				->SetType(\RainLoop\Enumerations\PluginPropertyType::INT)
 				->SetDefaultValue(3306),
-			\RainLoop\Plugins\Property::NewInstance('database')->SetLabel('MySQL Database')
+			\RainLoop\Plugins\Property::NewInstance('database')->SetLabel('Database Name')
 				->SetDefaultValue('postfixadmin'),
-			\RainLoop\Plugins\Property::NewInstance('table')->SetLabel('MySQL table')
+			\RainLoop\Plugins\Property::NewInstance('table')->SetLabel('Table Name')
 				->SetDefaultValue('mailbox'),
-			\RainLoop\Plugins\Property::NewInstance('usercol')->SetLabel('MySQL username column')
+			\RainLoop\Plugins\Property::NewInstance('usercol')->SetLabel('Username column')
 				->SetDefaultValue('username'),
-			\RainLoop\Plugins\Property::NewInstance('passcol')->SetLabel('MySQL password column')
+			\RainLoop\Plugins\Property::NewInstance('passcol')->SetLabel('Password column')
 				->SetDefaultValue('password'),
-			\RainLoop\Plugins\Property::NewInstance('user')->SetLabel('MySQL User')
+			\RainLoop\Plugins\Property::NewInstance('user')->SetLabel('Database User')
 				->SetDefaultValue('postfixadmin'),
-			\RainLoop\Plugins\Property::NewInstance('password')->SetLabel('MySQL Password')
+			\RainLoop\Plugins\Property::NewInstance('password')->SetLabel('Database Password')
 				->SetType(\RainLoop\Enumerations\PluginPropertyType::PASSWORD)
 				->SetDefaultValue(''),
 			\RainLoop\Plugins\Property::NewInstance('encrypt')->SetLabel('Encrypt')
 				->SetType(\RainLoop\Enumerations\PluginPropertyType::SELECTION)
-				->SetDefaultValue(array('md5crypt', 'md5', 'system', 'cleartext', 'mysql_encrypt', 'SHA256-CRYPT', 'SHA512-CRYPT'))
-				->SetDescription('In what way do you want the passwords to be crypted ?'),
-			\RainLoop\Plugins\Property::NewInstance('allowed_emails')->SetLabel('Allowed emails')
+				->SetDefaultValue(array('Plain', 'Crypt', 'PLAIN-MD5', 'MD5-CRYPT', 'SHA256', 'SSHA256', 'SHA256-CRYPT', 'SHA512', 'SSHA512', 'SHA512-CRYPT', 'BLF-CRYPT'))
+				->SetDescription('How should new passwords be encrypted?'),
+			\RainLoop\Plugins\Property::NewInstance('allowed_emails')->SetLabel('Allowed Emails')
 				->SetType(\RainLoop\Enumerations\PluginPropertyType::STRING_TEXT)
-				->SetDescription('Allowed emails, space as delimiter, wildcard supported. Example: user1@domain1.net user2@domain1.net *@domain2.net')
+				->SetDescription('Space-delimited, wildcards supported; e.g.: user1@domain1.net user2@domain1.net *@domain2.net')
 				->SetDefaultValue('*')
 		);
 	}
